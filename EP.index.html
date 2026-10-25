@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EquiPrep - Elite Digital SAT Prep</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- KaTeX for Math Rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
+    <!-- Desmos Calculator API -->
+    <script src="https://www.desmos.com/api/v1.9/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6"></script>
+    <style>
+        .option-card { transition: all 0.2s ease; }
+        .option-card:hover { transform: translateY(-1px); border-color: #3b82f6; }
+        .strikethrough { text-decoration: line-through; color: #9ca3af; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 px-6 py-3 flex justify-between items-center shadow-sm">
+        <div class="flex items-center space-x-4">
+            <button id="exit-btn" onclick="app.returnHome()" class="hidden text-sm font-semibold text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition">Home</button>
+            <h1 id="nav-title" class="text-lg font-bold text-slate-900">EquiPrep</h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button id="calc-toggle-btn" onclick="app.toggleCalculator()" class="hidden bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-xl font-medium text-sm shadow-sm transition items-center space-x-1.5">
+                <span>🧮 Calculator</span>
+            </button>
+            <div id="timer-box" class="hidden bg-slate-100 px-3 py-1.5 rounded-xl font-mono text-sm font-bold text-slate-700 flex items-center space-x-1">
+                <span>⏱️</span> <span id="timer-display">0:00</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 flex overflow-hidden relative">
+        <!-- Left / Main Panel -->
+        <div id="main-panel" class="flex-1 overflow-y-auto p-8 transition-all duration-300"></div>
+
+        <!-- Desmos Calculator Drawer (Right Side) -->
+        <div id="calc-drawer" class="w-1/2 border-l border-slate-200 bg-white flex flex-col hidden shadow-xl relative z-40">
+            <div class="bg-slate-900 text-white px-4 py-2.5 flex justify-between items-center text-sm font-medium">
+                <span>🧮 Desmos Graphing Calculator</span>
+                <button onclick="app.toggleCalculator()" class="text-slate-400 hover:text-white px-2 py-0.5 rounded">&times;</button>
+            </div>
+            <div id="calculator-element" class="flex-1 w-full h-full"></div>
+        </div>
+    </main>
+
+    <!-- Application Script -->
+    <script>
+        // --- MATH CURRICULUM & QUESTION BANK ---
+        const MATH_CURRICULUM = [
+            {
+                domain: "Algebra",
+                skills: [
+                    { id: "linear_eq", name: "Linear Equations in 1 Variable", desc: "Solve multi-step linear equations and word problems." },
+                    { id: "linear_sys", name: "Systems of Linear Equations", desc: "Solve 2x2 linear systems via substitution, elimination, or graphing." },
+                    { id: "linear_ineq", name: "Linear Inequalities", desc: "Interpret inequality constraints and regions." },
+                    { id: "linear_func", name: "Linear Functions & Word Problems", desc: "Interpret slope $m$ and y-intercept $b$ in real-world contexts." }
+                ]
+            },
+            {
+                domain: "Advanced Math",
+                skills: [
+                    { id: "quadratics", name: "Quadratic Equations", desc: "Factor, use the quadratic formula, and analyze parabolas." },
+                    { id: "polynomials", name: "Polynomials & Factoring", desc: "Add, subtract, multiply polynomials and find roots." },
+                    { id: "nonlinear_eq", name: "Nonlinear Equations & Systems", desc: "Solve systems involving quadratics, circles, and lines." },
+                    { id: "exponential", name: "Exponential Functions", desc: "Evaluate exponential growth, decay, and half-life models." },
+                    { id: "equivalent_expr", name: "Equivalent Expressions", desc: "Simplify rational expressions and radical exponents." }
+                ]
+            },
+            {
+                domain: "Problem-Solving & Data Analysis",
+                skills: [
+                    { id: "ratios_proportions", name: "Ratios, Rates & Proportions", desc: "Unit conversions, scale factors, and proportional logic." },
+                    { id: "percentages", name: "Percentages", desc: "Markups, discounts, tax calculations, and percent change." },
+                    { id: "one_var_data", name: "1-Variable Data (Center & Spread)", desc: "Mean, median, range, and standard deviation analysis." },
+                    { id: "two_var_data", name: "2-Variable Data (Scatterplots)", desc: "Line of best fit, correlation, and models." },
+                    { id: "probability", name: "Probability & Conditional Probability", desc: "Calculate theoretical and experimental probabilities." },
+                    { id: "inference", name: "Inference from Sample Statistics", desc: "Generalize sample data to populations and margins of error." }
+                ]
+            },
+            {
+                domain: "Geometry & Trigonometry",
+                skills: [
+                    { id: "lines_angles", name: "Lines, Angles & Polygons", desc: "Parallel lines, transversals, and interior angles." },
+                    { id: "triangles", name: "Right Triangles & Trigonometry", desc: "Pythagorean theorem, special right triangles, and SOHCAHTOA." },
+                    { id: "circles", name: "Circles", desc: "Arc length, sector area, and standard circle equation." },
+                    { id: "volume", name: "Area & Volume", desc: "Cylinders, cones, spheres, and composite solids." }
+                ]
+            }
+        ];
+
+        const MATH_QUESTION_BANK = {
+            linear_eq: [{ 
+                q: "If $3(x + 5) = 2x + 25$, what is the value of $x$?", 
+                options: ["10", "5", "15", "20"], 
+                correct: "10", 
+                stratType: "Desmos", 
+                stratRec: "Type both sides as separate equations ($y = 3(x+5)$ and $y = 2x+25$) and click the intersection point to find $x$.", 
+                trad: "Expand the left side: $3x + 15 = 2x + 25$. Subtract $2x$ and $15$ from both sides to get $x = 10$.", 
+                desmos: "Type $y = 3(x + 5)$ and $y = 2x + 25$ into Desmos. Click the intersection point $(10, 45)$ and read the x-coordinate.",
+                formula: "Slope-Intercept Form: $y = mx + b$<br>Point-Slope Form: $y - y_1 = m(x - x_1)$<br>Standard Form: $Ax + By = C$"
+            }],
+            linear_sys: [{ 
+                q: "What is the solution $(x, y)$ to the system of equations:<br>$\\begin{cases} 2x + y = 7 \\\\ x - y = 2 \\end{cases}$", 
+                options: ["(3, 1)", "(2, 3)", "(4, -1)", "(5, 3)"], 
+                correct: "(3, 1)", 
+                stratType: "Desmos", 
+                stratRec: "Type both equations directly into Desmos and click their intersection point for the exact coordinate pair.", 
+                trad: "Add the two equations together: $(2x + y) + (x - y) = 7 + 2 \\implies 3x = 9 \\implies x = 3$. Substitute back: $3 - y = 2 \\implies y = 1$.", 
+                desmos: "Type $2x + y = 7$ and $x - y = 2$ into Desmos. Click the intersection point to see $(3, 1)$.",
+                formula: "If equations are parallel, there are zero solutions.<br>If lines intersect, there is one solution.<br>If lines overlap, there are infinitely many solutions."
+            }],
+            linear_ineq: [{ 
+                q: "A parking garage charges a flat fee of $5$ dollars plus $2.50$ dollars per hour. If Malik has at most $20$ dollars to spend on parking, what is the maximum number of whole hours he can park?", 
+                options: ["6 hours", "5 hours", "7 hours", "8 hours"], 
+                correct: "6 hours", 
+                stratType: "Traditional", 
+                stratRec: "Set up the inequality $2.50x + 5 \\le 20$ and solve using basic arithmetic.", 
+                trad: "Set up inequality: $2.50x + 5 \\le 20 \\implies 2.50x \\le 15 \\implies x \\le 6$.", 
+                desmos: "Graph $y = 2.50x + 5$ and $y = 20$ to find the intersection where hours equal 6.",
+                formula: "When multiplying or dividing an inequality by a negative number, you MUST flip the inequality sign."
+            }],
+            linear_func: [{ 
+                q: "The function $f(t) = 18 + 4.5t$ models the height of a plant, in centimeters, $t$ weeks after it is planted. What is the best interpretation of the number $4.5$ in this context?", 
+                options: ["The predicted weekly growth in centimeters", "The initial height of the plant in centimeters", "The maximum height the plant can reach", "The number of weeks it takes to double in height"], 
+                correct: "The predicted weekly growth in centimeters", 
+                stratType: "Traditional", 
+                stratRec: "Recall slope-intercept form $y = mx + b$, where $m$ is the rate of change.", 
+                trad: "In $f(t) = mt + b$, $m = 4.5$ represents the rate of change per unit time ($t$ weeks), meaning growth per week.", 
+                desmos: "Not applicable for conceptual interpretation questions.",
+                formula: "Slope $m = \frac{y_2 - y_1}{x_2 - x_1}$<br>$y$-intercept $b$ is the starting value when $x = 0$."
+            }],
+            quadratics: [{ 
+                q: "What are the solutions to the equation $x^2 - 9x + 18 = 0$?", 
+                options: ["x = 3, x = 6", "x = -3, x = -6", "x = 2, x = 9", "x = -2, x = -9"], 
+                correct: "x = 3, x = 6", 
+                stratType: "Desmos", 
+                stratRec: "Graph the parabola $y = x^2 - 9x + 18$ and click the x-intercepts.", 
+                trad: "Factor the quadratic into $(x - 3)(x - 6) = 0$, giving solutions $x = 3$ and $x = 6$.", 
+                desmos: "Type $y = x^2 - 9x + 18$ into Desmos and click where the curve crosses the x-axis.",
+                formula: "Quadratic Formula: $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$<br>Vertex Form: $y = a(x-h)^2 + k$<br>Discriminant: $b^2 - 4ac$"
+            }],
+            polynomials: [{ 
+                q: "Which of the following expressions is equivalent to $(4x^2 + 5x - 2) - (2x^2 - x + 3)$?", 
+                options: ["2x^2 + 6x - 5", "2x^2 + 4x + 1", "6x^2 + 4x - 5", "2x^2 + 6x + 1"], 
+                correct: "2x^2 + 6x - 5", 
+                stratType: "Desmos", 
+                stratRec: "Assign a test value for $x$ (e.g., $x = 3$) in the original expression and check which option matches.", 
+                trad: "Distribute the negative sign: $4x^2 + 5x - 2 - 2x^2 + x - 3$. Combine like terms to get $2x^2 + 6x - 5$.", 
+                desmos: "Set $x = 3.14$ in Desmos for the prompt expression, then test each option for equality.",
+                formula: "Difference of Squares: $a^2 - b^2 = (a-b)(a+b)$<br>Perfect Square Trinomials: $(a+b)^2 = a^2 + 2ab + b^2$"
+            }],
+            nonlinear_eq: [{ 
+                q: "In the xy-plane, the graph of $(x - 3)^2 + (y + 4)^2 = 25$ is a circle. What are the coordinates of the center of the circle?", 
+                options: ["(3, -4)", "(-3, 4)", "(3, 4)", "(-3, -4)"], 
+                correct: "(3, -4)", 
+                stratType: "Desmos", 
+                stratRec: "Type the circle equation directly into Desmos to visually inspect its center point.", 
+                trad: "The standard circle equation is $(x - h)^2 + (y - k)^2 = r^2$, where $(h, k)$ is the center. Here $h = 3$ and $k = -4$.", 
+                desmos: "Type $(x - 3)^2 + (y + 4)^2 = 25$ into Desmos and inspect the center $(3, -4)$.",
+                formula: "Standard Circle Equation: $(x-h)^2 + (y-k)^2 = r^2$<br>Where $(h,k)$ is the center point and $r$ is the radius."
+            }],
+            exponential: [{ 
+                q: "An investment account grows according to the model $V(t) = 5000(1.06)^t$. What does the number $1.06$ represent in this model?", 
+                options: ["The growth factor per year, indicating a 6% annual increase", "The initial deposit amount of 1,060 dollars", "The total value of the account after 6 years", "The annual interest rate of 106%"], 
+                correct: "The growth factor per year, indicating a 6% annual increase", 
+                stratType: "Traditional", 
+                stratRec: "Recall exponential form $P(t) = P_0(1 + r)^t$.", 
+                trad: "The base $1.06$ can be written as $1 + 0.06$, which represents a $6\\%$ increase each period.", 
+                desmos: "Not applicable for conceptual financial model questions.",
+                formula: "Exponential Growth/Decay: $y = a(1 \pm r)^x$<br>Where $a$ is the initial value, and $r$ is the decimal rate."
+            }],
+            equivalent_expr: [{ 
+                q: "Which expression is equivalent to $\\frac{x^2 - 4}{x - 2}$ for $x \\neq 2$?", 
+                options: ["x + 2", "x - 2", "x + 4", "x - 4"], 
+                correct: "x + 2", 
+                stratType: "Desmos", 
+                stratRec: "Define $f(x) = \\frac{x^2 - 4}{x - 2}$ in Desmos and check which option produces the identical graph or table.", 
+                trad: "Factor the numerator as a difference of squares: $(x - 2)(x + 2)$. Cancel $(x - 2)$ to leave $x + 2$.", 
+                desmos: "Graph $y = \\frac{x^2 - 4}{x - 2}$ alongside $y = x + 2$ to see they overlap completely.",
+                formula: "Exponent Rules:<br>$x^a \cdot x^b = x^{a+b}$<br>$\frac{x^a}{x^b} = x^{a-b}$<br>$(x^a)^b = x^{ab}$"
+            }],
+            ratios_proportions: [{ 
+                q: "A map has a scale of $2$ inches to $15$ miles. If two cities are $7$ inches apart on the map, what is the actual distance between them in miles?", 
+                options: ["52.5 miles", "30 miles", "45 miles", "60 miles"], 
+                correct: "52.5 miles", 
+                stratType: "Traditional", 
+                stratRec: "Set up a direct proportion $\\frac{2}{15} = \\frac{7}{x}$ and cross-multiply.", 
+                trad: "Cross-multiply: $2x = 15 \\times 7 = 105 \\implies x = 105 / 2 = 52.5$ miles.", 
+                desmos: "Type $15 * 7 / 2$ into Desmos for instant calculation.",
+                formula: "Direct Proportion: $\frac{y_1}{x_1} = \frac{y_2}{x_2}$<br>Cross-multiplication is the fastest way to solve for the missing variable."
+            }],
+            percentages: [{ 
+                q: "A jacket originally priced at $120$ dollars is on sale for $25\\%$ off. What is the sale price of the jacket in dollars?", 
+                options: ["90 dollars", "95 dollars", "85 dollars", "100 dollars"], 
+                correct: "90 dollars", 
+                stratType: "Traditional", 
+                stratRec: "Multiply the original price by $(1 - \\text{discount rate})$.", 
+                trad: "A 25% discount leaves 75% of the price. Calculate $120 \\times 0.75 = 90$ dollars.", 
+                desmos: "Type $120 * 0.75$ into Desmos.",
+                formula: "Percent Change = $\frac{\text{New} - \text{Old}}{\text{Old}} \times 100$<br>Discount Price = $\text{Original} \times (1 - \text{rate})$"
+            }],
+            one_var_data: [{ 
+                q: "If the average (mean) of five numbers is $14$, and four of the numbers are $10, 12, 15,$ and $20$, what is the fifth number?", 
+                options: ["13", "11", "15", "18"], 
+                correct: "13", 
+                stratType: "Traditional", 
+                stratRec: "Multiply mean by total count to find the target sum.", 
+                trad: "Total sum = $14 \\times 5 = 70$. Sum of known numbers = $10 + 12 + 15 + 20 = 57$. Fifth number = $70 - 57 = 13$.", 
+                desmos: "Use arithmetic in Desmos to sum and subtract.",
+                formula: "Mean = $\frac{\text{Sum of Values}}{\text{Total Number of Values}}$<br>Target Sum = $\text{Mean} \times \text{Total Number of Values}$"
+            }],
+            two_var_data: [{ 
+                q: "A scatterplot shows the relationship between hours studied and test scores. The line of best fit is $y = 6.5x + 55$. What is the predicted score for a student who studies $4$ hours?", 
+                options: ["81", "79", "85", "75"], 
+                correct: "81", 
+                stratType: "Traditional", 
+                stratRec: "Substitute $x = 4$ into the linear equation.", 
+                trad: "Substitute $x = 4$: $y = 6.5(4) + 55 = 26 + 55 = 81$.", 
+                desmos: "Type $6.5 * 4 + 55$ into Desmos.",
+                formula: "Line of Best Fit: $y = ax + b$<br>Always plug the known variable into the equation to find the predicted outcome."
+            }],
+            probability: [{ 
+                q: "A box contains $5$ red pens, $7$ blue pens, and $8$ black pens. If one pen is chosen at random, what is the probability that it is blue?", 
+                options: ["\\frac{7}{20}", "\\frac{7}{13}", "\\frac{3}{10}", "\\frac{13}{20}"], 
+                correct: "\\frac{7}{20}", 
+                stratType: "Traditional", 
+                stratRec: "Use the theoretical probability ratio $\\text{Target} / \\text{Total}$.", 
+                trad: "Total pens = $5 + 7 + 8 = 20$. Blue pens = $7$. Probability = $\\frac{7}{20}$.", 
+                desmos: "Use basic arithmetic to find total sum.",
+                formula: "Probability = $\frac{\text{Number of Desired Outcomes}}{\text{Total Number of Outcomes}}$"
+            }],
+            inference: [{ 
+                q: "In a random sample of $400$ town residents, $240$ voted in favor of the new park bond. Based on this, which of the following is the best estimate of the proportion of all residents in the town who favor the bond?", 
+                options: ["0.60", "0.40", "0.50", "0.75"], 
+                correct: "0.60", 
+                stratType: "Traditional", 
+                stratRec: "Calculate the sample proportion $\frac{\text{Successful}}{\text{Sample Size}}$.", 
+                trad: "Proportion = $240 / 400 = 24 / 40 = 6 / 10 = 0.60$.", 
+                desmos: "Type $240 / 400$ into Desmos.",
+                formula: "Sample Proportion $\hat{p} = \frac{x}{n}$<br>Where $x$ is the number of successes and $n$ is the sample size."
+            }],
+            lines_angles: [{ 
+                q: "In a plane, two parallel lines are intersected by a transversal. If one interior angle measures $65^\\circ$, what is the measure of its alternate interior angle?", 
+                options: ["65^\\circ", "115^\\circ", "90^\\circ", "25^\\circ"], 
+                correct: "65^\\circ", 
+                stratType: "Traditional", 
+                stratRec: "Recall angle rules for parallel lines (alternate interior angles are congruent).", 
+                trad: "Alternate interior angles formed by parallel lines and a transversal are equal, so the angle is $65^\\circ$.", 
+                desmos: "Not applicable for geometric angle properties.",
+                formula: "Supplementary Angles sum to $180^\circ$.<br>Vertical Angles are congruent (equal).<br>Alternate Interior Angles are congruent."
+            }],
+            triangles: [{ 
+                q: "A right triangle has a hypotenuse of length $13$ and one leg of length $5$. What is the length of the other leg?", 
+                options: ["12", "10", "8", "\\sqrt{194}"], 
+                correct: "12", 
+                stratType: "Desmos", 
+                stratRec: "Type $\\sqrt{13^2 - 5^2}$ into Desmos to solve instantly.", 
+                trad: "Pythagorean theorem: $5^2 + b^2 = 13^2 \\implies 25 + b^2 = 169 \\implies b^2 = 144 \\implies b = 12$.", 
+                desmos: "Type $\\sqrt{13^2 - 5^2}$ into Desmos to compute $12$.",
+                formula: "Pythagorean Theorem: $a^2 + b^2 = c^2$<br>Special Right Triangles:<br>$45-45-90$: sides are $x, x, x\sqrt{2}$<br>$30-60-90$: sides are $x, x\sqrt{3}, 2x$"
+            }],
+            circles: [{ 
+                q: "A circle has a diameter of $10$ centimeters. What is the circumference of the circle in centimeters?", 
+                options: ["10\\pi", "5\\pi", "25\\pi", "20\\pi"], 
+                correct: "10\\pi", 
+                stratType: "Desmos", 
+                stratRec: "Use Desmos to calculate circumference formula $C = \\pi d$.", 
+                trad: "Circumference formula is $C = \\pi d$. Given diameter $d = 10$, circumference is $10\\pi$.", 
+                desmos: "Type $10 * \\pi$ into Desmos to verify.",
+                formula: "Area = $\pi r^2$<br>Circumference = $2\pi r$ (or $\pi d$)<br>Arc Length = $\frac{\theta}{360} \times 2\pi r$"
+            }],
+            volume: [{ 
+                q: "A right circular cylinder has a radius of $3$ inches and a height of $5$ inches. What is the volume of the cylinder in cubic inches?", 
+                options: ["45\\pi", "30\\pi", "15\\pi", "90\\pi"], 
+                correct: "45\\pi", 
+                stratType: "Desmos", 
+                stratRec: "Type $\\pi \\times 3^2 \\times 5$ into Desmos.", 
+                trad: "Cylinder volume formula is $V = \\pi r^2 h = \\pi (3)^2 (5) = \\pi (9)(5) = 45\\pi$.", 
+                desmos: "Type $3^2 * 5 * \\pi$ into Desmos for $45\\pi$.",
+                formula: "Rectangular Prism: $V = lwh$<br>Cylinder: $V = \pi r^2 h$<br>Cone: $V = \frac{1}{3}\pi r^2 h$"
+            }]
+        };
+
+        const ENGLISH_CURRICULUM = [
+            {
+                domain: "Information and Ideas",
+                skills: [
+                    { id: "central_ideas", name: "Central Ideas and Details", desc: "Identify the main point and find supporting details in texts." },
+                    { id: "command_evidence", name: "Command of Evidence", desc: "Evaluate text or quantitative data to support a claim." }
+                ]
+            },
+            {
+                domain: "Craft and Structure",
+                skills: [
+                    { id: "words_context", name: "Words in Context", desc: "Determine the meaning and impact of high-utility vocabulary." },
+                    { id: "text_structure", name: "Text Structure and Purpose", desc: "Analyze how a text is organized and what it aims to achieve." }
+                ]
+            },
+            {
+                domain: "Expression of Ideas",
+                skills: [
+                    { id: "rhetorical_synthesis", name: "Rhetorical Synthesis", desc: "Integrate provided notes to achieve a specific writing goal." },
+                    { id: "transitions", name: "Transitions", desc: "Select the most logical transitional word or phrase to connect ideas." }
+                ]
+            },
+            {
+                domain: "Standard English Conventions",
+                skills: [
+                    { id: "boundaries", name: "Boundaries", desc: "Apply rules of punctuation to separate sentences and clauses." },
+                    { id: "form_structure", name: "Form, Structure, and Sense", desc: "Edit text for proper verb tense, pronoun usage, and agreement." }
+                ]
+            }
+        ];
+
+        const ENGLISH_QUESTION_BANK = {
+            central_ideas: [{ 
+                q: "While many critics praised the novel's elaborate world-building, some argued that its pacing suffered as a result. The author dedicated entire chapters to describing the geography and political history of the fictional continent, which, although deeply immersive, often brought the main narrative to a standstill.<br><br>Which choice best states the main idea of the text?", 
+                options: ["The novel's world-building was universally beloved.", "The author's focus on world-building distracted from pacing.", "The history is the most important part of the book.", "The narrative was abandoned completely."], 
+                correct: "The author's focus on world-building distracted from pacing.", 
+                stratType: "Reading Comprehension", 
+                stratRec: "Focus on transition words like 'While' and 'although' to capture the balanced view presented by the author.", 
+                trad: "The text explicitly contrasts the praise for the world-building with the criticism that it slowed down the pacing.", 
+                desmos: "N/A" 
+            }],
+            command_evidence: [{ 
+                q: "A researcher claims that urban noise pollution alters the communication patterns of local bird populations. <br><br>Which finding, if true, would most directly support the researcher's claim?", 
+                options: ["Birds in rural areas sing at a lower pitch.", "The diet of birds in urban areas differs significantly.", "Noise pollution in cities has increased by 15% over the decade.", "Birds exposed to high urban noise sing at higher frequencies to be heard."], 
+                correct: "Birds exposed to high urban noise sing at higher frequencies to be heard.", 
+                stratType: "Command of Evidence", 
+                stratRec: "Look for the option that directly connects both variables in the claim: 'noise pollution' and 'altered communication'.", 
+                trad: "The correct option explicitly links high levels of urban noise to an altered communication pattern (singing at higher frequencies).", 
+                desmos: "N/A" 
+            }],
+            words_context: [{ 
+                q: "The researcher's presentation on quantum mechanics was surprisingly ________; even the high school students in the audience were able to grasp the core concepts without difficulty.", 
+                options: ["lucid", "convoluted", "archaic", "ephemeral"], 
+                correct: "lucid", 
+                stratType: "Vocabulary in Context", 
+                stratRec: "Look at the context clue: 'even the high school students... were able to grasp the core concepts'.", 
+                trad: "The word must mean 'clear' or 'easy to understand'. 'Lucid' perfectly matches this definition.", 
+                desmos: "N/A" 
+            }],
+            text_structure: [{ 
+                q: "The author first describes the traditional methods of farming in the region, then details a recent technological innovation, and finally evaluates the impact of this innovation on crop yields.<br><br>Which choice best describes the overall structure of the text?", 
+                options: ["Chronological narrative", "Problem and solution", "Comparison of two theories", "Historical context followed by an analysis of a new development"], 
+                correct: "Historical context followed by an analysis of a new development", 
+                stratType: "Text Structure", 
+                stratRec: "Map the passage's flow step-by-step: Past method -> New tech -> Impact evaluation.", 
+                trad: "The structure explicitly moves from 'traditional methods' (historical context) to 'recent technological innovation' and its 'impact' (analysis of a new development).", 
+                desmos: "N/A" 
+            }],
+            rhetorical_synthesis: [{ 
+                q: "While researching a topic, a student has taken the following notes:<br>- The Kakapo is a species of large, flightless parrot native to New Zealand.<br>- It is heavily endangered, with a population of just over 200 individuals.<br>- Conservation efforts have moved the remaining birds to predator-free island sanctuaries.<br><br>The student wants to emphasize the conservation strategy being used to protect the Kakapo. Which choice most effectively uses relevant information from the notes to accomplish this goal?", 
+                options: ["The Kakapo, a flightless parrot native to New Zealand, has a population of just over 200.", "To protect the critically endangered Kakapo, conservationists have relocated individuals to predator-free island sanctuaries.", "Native to New Zealand, the Kakapo is a large parrot that cannot fly.", "There are over 200 Kakapos living in New Zealand, making them heavily endangered."], 
+                correct: "To protect the critically endangered Kakapo, conservationists have relocated individuals to predator-free island sanctuaries.", 
+                stratType: "Rhetorical Strategy", 
+                stratRec: "Identify the specific goal in the prompt ('emphasize the conservation strategy') and eliminate options that only state background facts.", 
+                trad: "This option is the only one that focuses primarily on the action taken to save the birds (relocation to predator-free sanctuaries), matching the prompt's exact goal.", 
+                desmos: "N/A" 
+            }],
+            transitions: [{ 
+                q: "The museum's budget was drastically reduced for the upcoming fiscal year. _________, the board of directors decided to cancel the highly anticipated summer exhibition.", 
+                options: ["However", "Consequently", "For example", "Nevertheless"], 
+                correct: "Consequently", 
+                stratType: "Grammar & Transitions", 
+                stratRec: "Determine the relationship between the two sentences. A reduced budget causes the cancellation of an event.", 
+                trad: "'Consequently' correctly signals a cause-and-effect relationship, where the second sentence is a direct result of the first.", 
+                desmos: "N/A" 
+            }],
+            boundaries: [{ 
+                q: "The team members, who were exhausted from the grueling cross-country flight, ________ to rest at the hotel before beginning their research.", 
+                options: ["decided", "deciding", "to decide", "having decided"], 
+                correct: "decided", 
+                stratType: "Standard English Conventions", 
+                stratRec: "Identify the main subject ('The team members') and ensure the sentence has a functioning main verb.", 
+                trad: "The subject 'The team members' requires a finite main verb. 'Decided' provides the necessary verb to complete the independent clause.", 
+                desmos: "N/A" 
+            }],
+            form_structure: [{ 
+                q: "By the time the lead architect arrives at the construction site tomorrow morning, the engineering team ________ the foundation inspection.", 
+                options: ["completed", "will complete", "will have completed", "completes"], 
+                correct: "will have completed", 
+                stratType: "Verb Tense & Agreement", 
+                stratRec: "Look for time markers. 'By the time... tomorrow morning' requires a specific future tense.", 
+                trad: "The future perfect tense 'will have completed' correctly indicates that the inspection will be finished prior to the architect's arrival tomorrow.", 
+                desmos: "N/A" 
+            }]
+        };
+
+        class App {
+            constructor() {
+                this.sessionStats = {
+                    total: 0,
+                    correct: 0,
+                    wrong: 0,
+                    timeSeconds: 0
+                };
+                this.isStopwatch = false;
+                
+                this.currentTab = 'practice';
+                this.topicTab = 'learn';
+                this.currentSubject = null; 
+                this.currentDomain = null;
+                this.currentSkill = null;
+                this.quizMode = 'drill';
+                this.questions = [];
+                this.currentIndex = 0;
+                this.score = 0;
+                this.userAnswers = {};
+                this.eliminatedOptions = {};
+                this.calculator = null;
+                this.calcVisible = false;
+                this.timerInterval = null;
+                this.timeLeft = 0;
+                this.initCalculator();
+                this.render();
+            }
+
+            initCalculator() {
+                setTimeout(() => {
+                    const elt = document.getElementById('calculator-element');
+                    if (elt && !this.calculator) {
+                        this.calculator = Desmos.GraphingCalculator(elt, { expressions: true, settingsMenu: true });
+                    }
+                }, 200);
+            }
+
+            toggleCalculator() {
+                this.calcVisible = !this.calcVisible;
+                const drawer = document.getElementById('calc-drawer');
+                if (this.calcVisible) {
+                    drawer.classList.remove('hidden');
+                    if (this.calculator) this.calculator.resize();
+                } else {
+                    drawer.classList.add('hidden');
+                }
+            }
+
+            selectSubject(subject) {
+                this.currentSubject = subject;
+                document.getElementById('exit-btn').classList.remove('hidden');
+                this.render();
+            }
+
+            returnHome() {
+                if (this.currentSkill || this.quizMode === 'adaptive' || this.quizMode === 'drill_results') {
+                    this.currentDomain = null;
+                    this.currentSkill = null;
+                    this.quizMode = 'drill';
+                    this.questions = [];
+                    this.stopTimer();
+                    document.getElementById('timer-box').classList.add('hidden');
+                } else {
+                    this.currentSubject = null;
+                    document.getElementById('exit-btn').classList.add('hidden');
+                }
+                this.render();
+            }
+
+            getActiveCurriculum() {
+                return this.currentSubject === 'english' ? ENGLISH_CURRICULUM : MATH_CURRICULUM;
+            }
+
+            getActiveBank() {
+                return this.currentSubject === 'english' ? ENGLISH_QUESTION_BANK : MATH_QUESTION_BANK;
+            }
+
+            startDrill(domainName, skillId) {
+                this.quizMode = 'drill';
+                this.currentDomain = domainName;
+                this.currentSkill = skillId;
+                this.topicTab = 'learn'; 
+                this.loadQuestion();
+                this.render();
+            }
+
+            switchTopicTab(tab) {
+                this.topicTab = tab;
+                if (tab === 'practice') {
+                    // Reset session stats when starting a practice session
+                    this.sessionStats = { total: 0, correct: 0, wrong: 0, timeSeconds: 0 };
+                    document.getElementById('timer-box').classList.remove('hidden');
+                    this.startTimer(null); // NULL triggers Stopwatch mode
+                } else {
+                    document.getElementById('timer-box').classList.add('hidden');
+                    this.stopTimer();
+                }
+                this.render();
+            }
+
+            finishDrill() {
+                this.stopTimer();
+                this.quizMode = 'drill_results';
+                document.getElementById('timer-box').classList.add('hidden');
+                this.render();
+            }
+
+            startAdaptiveTest() {
+                this.quizMode = 'adaptive';
+                this.currentIndex = 0;
+                this.score = 0;
+                this.userAnswers = {};
+                this.eliminatedOptions = {};
+                
+                this.questions = [];
+                const allSkills = [];
+                const activeCurriculum = this.getActiveCurriculum();
+                const activeBank = this.getActiveBank();
+
+                activeCurriculum.forEach(d => d.skills.forEach(s => allSkills.push(s.id)));
+                const totalQs = this.currentSubject === 'english' ? 27 : 22;
+
+                for (let i = 0; i < totalQs; i++) {
+                    const randomSkillId = allSkills[Math.floor(Math.random() * allSkills.length)];
+                    const bankList = activeBank[randomSkillId] || activeBank[Object.keys(activeBank)[0]];
+                    const qItem = bankList[Math.floor(Math.random() * bankList.length)];
+                    this.questions.push({ ...qItem, skillName: randomSkillId });
+                }
+
+                // Get Accommodations Multiplier
+                let multiplier = 1;
+                const dropdown = document.getElementById('time-multiplier');
+                if (dropdown) {
+                    multiplier = parseFloat(dropdown.value);
+                }
+
+                document.getElementById('timer-box').classList.remove('hidden');
+                const timerMinutes = this.currentSubject === 'english' ? 32 : 35;
+                
+                // Start timer with applied multiplier
+                this.startTimer(timerMinutes * 60 * multiplier); 
+                this.render();
+            }
+
+            startTimer(seconds) {
+                this.stopTimer();
+                if (seconds === null) {
+                    this.isStopwatch = true;
+                    this.timeLeft = 0;
+                } else {
+                    this.isStopwatch = false;
+                    this.timeLeft = seconds;
+                }
+                
+                const display = document.getElementById('timer-display');
+                this.timerInterval = setInterval(() => {
+                    
+                    if (this.isStopwatch) {
+                        this.timeLeft++;
+                        this.sessionStats.timeSeconds++;
+                    } else {
+                        this.timeLeft--;
+                        if (this.timeLeft <= 0) {
+                            this.stopTimer();
+                            alert("Time's up!");
+                            if(this.quizMode === 'adaptive') this.finishModule();
+                            return;
+                        }
+                    }
+                    
+                    const m = Math.floor(this.timeLeft / 60);
+                    const s = this.timeLeft % 60;
+                    display.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                }, 1000);
+            }
+
+            stopTimer() {
+                if (this.timerInterval) clearInterval(this.timerInterval);
+            }
+
+            loadQuestion() {
+                const activeBank = this.getActiveBank();
+                const bankList = activeBank[this.currentSkill] || activeBank[Object.keys(activeBank)[0]];
+                const qItem = bankList[Math.floor(Math.random() * bankList.length)];
+                this.questions = [{ ...qItem }];
+                this.currentIndex = 0;
+                this.userAnswers = {};
+                this.eliminatedOptions = {};
+            }
+
+            render() {
+                const panel = document.getElementById('main-panel');
+                if (!panel) return;
+
+                if (this.currentDomain && this.currentSkill && this.quizMode === 'drill') {
+                    panel.innerHTML = this.renderTopicDashboard();
+                } else if (this.quizMode === 'drill_results') {
+                    panel.innerHTML = this.renderDrillResults();
+                } else if (this.quizMode === 'adaptive' && this.questions.length > 0) {
+                    panel.innerHTML = this.renderAdaptiveView();
+                } else {
+                    if (!this.currentSubject) {
+                        panel.innerHTML = this.renderSubjectSelection();
+                    } else if (this.currentSubject === 'math') {
+                        panel.innerHTML = this.renderSubjectDashboard('Math', '🧮 Math Section', 'bg-blue-600', 'to-blue-800', MATH_CURRICULUM, 22);
+                    } else if (this.currentSubject === 'english') {
+                        panel.innerHTML = this.renderSubjectDashboard('Reading & Writing', '📖 Reading & Writing Section', 'bg-indigo-600', 'to-indigo-800', ENGLISH_CURRICULUM, 27);
+                    }
+                }
+
+                // Calculator Button Visibility Logic
+                const calcBtn = document.getElementById('calc-toggle-btn');
+                if (calcBtn) {
+                    if (this.currentSubject === 'math' && this.currentDomain) {
+                        calcBtn.classList.remove('hidden');
+                        calcBtn.classList.add('flex');
+                    } else {
+                        calcBtn.classList.add('hidden');
+                        calcBtn.classList.remove('flex');
+                        if (this.calcVisible) this.toggleCalculator(); // close it if open
+                    }
+                }
+
+                // KaTeX Auto-Render Logic with strict dollar sign matching to prevent bugs
+                setTimeout(() => { 
+                    if (window.renderMathInElement) {
+                        renderMathInElement(panel, {
+                            delimiters: [
+                                {left: "$$", right: "$$", display: true},
+                                {left: "$", right: "$", display: false}
+                            ],
+                            throwOnError: false
+                        });
+                    } 
+                }, 50);
+            }
+
+            renderSubjectSelection() {
+                // Completely pure grid layout - no stats box on the home screen anymore
+                return `
+                    <div class="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[60vh] space-y-6 animate-fade-in">
+                        <div class="text-center space-y-2 mb-4 mt-8">
+                            <h2 class="text-4xl font-extrabold text-slate-900">Select Your Section</h2>
+                            <p class="text-slate-500">Choose a subject to begin practicing official SAT questions.</p>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
+                            <div onclick="app.selectSubject('math')" class="cursor-pointer group bg-white border-2 border-slate-200 hover:border-blue-500 rounded-3xl p-8 shadow-sm hover:shadow-xl transition-all flex flex-col items-center text-center space-y-4">
+                                <div class="w-20 h-20 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center text-4xl mb-2">🧮</div>
+                                <h3 class="text-2xl font-bold text-slate-900 group-hover:text-blue-600 transition">Math</h3>
+                                <p class="text-slate-500 text-sm">Algebra, Advanced Math, Problem-Solving & Data Analysis, and Geometry.</p>
+                                <span class="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl font-bold text-sm w-full mt-4 group-hover:bg-blue-600 group-hover:text-white transition">Enter Section →</span>
+                            </div>
+                            <div onclick="app.selectSubject('english')" class="cursor-pointer group bg-white border-2 border-slate-200 hover:border-indigo-500 rounded-3xl p-8 shadow-sm hover:shadow-xl transition-all flex flex-col items-center text-center space-y-4">
+                                <div class="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center text-4xl mb-2">📖</div>
+                                <h3 class="text-2xl font-bold text-slate-900 group-hover:text-indigo-600 transition">Reading & Writing</h3>
+                                <p class="text-slate-500 text-sm">Information & Ideas, Craft & Structure, Expression of Ideas, and Standard English Conventions.</p>
+                                <span class="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl font-bold text-sm w-full mt-4 group-hover:bg-indigo-600 group-hover:text-white transition">Enter Section →</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderSubjectDashboard(title, iconTitle, colorStart, colorEnd, curriculumData, qCount) {
+                const btnColorHover = title === 'Math' ? 'hover:bg-blue-50 text-blue-700' : 'hover:bg-indigo-50 text-indigo-700';
+                const tagColor = title === 'Math' ? 'text-blue-700 group-hover:text-blue-700' : 'text-indigo-700 group-hover:text-indigo-700';
+                const tagBg = title === 'Math' ? 'bg-blue-50 group-hover:bg-blue-600 group-hover:text-white' : 'bg-indigo-50 group-hover:bg-indigo-600 group-hover:text-white';
+                const borderHover = title === 'Math' ? 'hover:border-blue-300 hover:bg-blue-50/50' : 'hover:border-indigo-300 hover:bg-indigo-50/50';
+
+                return `
+                    <div class="max-w-5xl mx-auto space-y-8 animate-fade-in">
+                        <div class="bg-gradient-to-r ${colorStart} ${colorEnd} rounded-3xl p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
+                            <div>
+                                <h2 class="text-3xl font-extrabold mb-2">${iconTitle}</h2>
+                                <p class="${title === 'Math' ? 'text-blue-100' : 'text-indigo-100'} max-w-xl">Curated question bank matching official Bluebook difficulty and structure.</p>
+                                <div class="flex items-center space-x-2 bg-black/10 px-3 py-1.5 rounded-lg mt-4 w-fit">
+                                    <span class="text-sm font-semibold text-white">Accommodations:</span>
+                                    <select id="time-multiplier" class="bg-transparent text-white font-bold outline-none text-sm cursor-pointer">
+                                        <option value="1" class="text-slate-900">Standard Time</option>
+                                        <option value="1.5" class="text-slate-900">1.5x Time</option>
+                                        <option value="2" class="text-slate-900">2.0x Time</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button onclick="app.startAdaptiveTest()" class="bg-white ${btnColorHover} font-bold px-6 py-3 rounded-2xl shadow-md transition flex items-center space-x-2">
+                                <span>🚀 Simulate Adaptive Test (${qCount} Qs)</span>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            ${curriculumData.map(dom => `
+                                <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition">
+                                    <h3 class="text-lg font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+                                        <span>${dom.domain}</span>
+                                        <span class="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">${dom.skills.length} Skills</span>
+                                    </h3>
+                                    <div class="space-y-3">
+                                        ${dom.skills.map(s => `
+                                            <div onclick="app.startDrill('${dom.domain}', '${s.id}')" class="group p-3 rounded-xl border border-slate-100 ${borderHover} cursor-pointer transition flex justify-between items-center">
+                                                <div>
+                                                    <h4 class="font-semibold text-slate-800 ${tagColor} text-sm">${s.name}</h4>
+                                                    <p class="text-xs text-slate-500">${s.desc}</p>
+                                                </div>
+                                                <span class="text-xs font-bold ${tagBg} px-3 py-1.5 rounded-lg transition">Study →</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderTopicDashboard() {
+                const activeBank = this.getActiveBank();
+                const bankList = activeBank[this.currentSkill] || activeBank[Object.keys(activeBank)[0]];
+                const qItem = bankList[0]; 
+                
+                const themeColor = this.currentSubject === 'english' ? 'indigo' : 'blue';
+
+                let tabsHtml = '';
+                if (this.currentSubject === 'math') {
+                    tabsHtml = `
+                        <div class="flex space-x-6 border-b border-slate-200 mb-8">
+                            <button onclick="app.switchTopicTab('learn')" class="pb-3 px-2 text-lg font-medium transition-colors ${this.topicTab === 'learn' ? 'border-b-4 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'}">📚 Learn</button>
+                            <button onclick="app.switchTopicTab('formulas')" class="pb-3 px-2 text-lg font-medium transition-colors ${this.topicTab === 'formulas' ? 'border-b-4 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'}">∑ Formulas</button>
+                            <button onclick="app.switchTopicTab('practice')" class="pb-3 px-2 text-lg font-medium transition-colors ${this.topicTab === 'practice' ? 'border-b-4 border-blue-600 text-blue-600' : 'text-slate-500 hover:text-slate-800'}">⚡ Practice</button>
+                        </div>
+                    `;
+                } else {
+                    tabsHtml = `
+                        <div class="flex space-x-6 border-b border-slate-200 mb-8">
+                            <button onclick="app.switchTopicTab('learn')" class="pb-3 px-2 text-lg font-medium transition-colors ${this.topicTab === 'learn' ? 'border-b-4 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-800'}">📚 Learn</button>
+                            <button onclick="app.switchTopicTab('practice')" class="pb-3 px-2 text-lg font-medium transition-colors ${this.topicTab === 'practice' ? 'border-b-4 border-indigo-600 text-indigo-600' : 'text-slate-500 hover:text-slate-800'}">⚡ Practice</button>
+                        </div>
+                    `;
+                }
+
+                let contentHtml = '';
+                if (this.topicTab === 'learn') {
+                    contentHtml = `
+                        <div class="space-y-6">
+                            <div class="bg-slate-50 border border-slate-200 p-6 rounded-2xl">
+                                <h3 class="font-bold text-slate-800 mb-2 text-lg">The Concept</h3>
+                                <p class="text-slate-700 leading-relaxed">${qItem.trad || 'Read carefully and apply logical reasoning.'}</p>
+                            </div>
+                            ${this.currentSubject === 'math' ? `
+                            <div class="bg-emerald-50 border border-emerald-200 p-6 rounded-2xl">
+                                <h3 class="font-bold text-emerald-800 mb-2 flex items-center gap-2 text-lg"><span>⚡</span> The Desmos Shortcut</h3>
+                                <p class="text-emerald-900 leading-relaxed">${qItem.desmos || 'Use Desmos to bypass complex algebra.'}</p>
+                            </div>
+                            ` : `
+                            <div class="bg-indigo-50 border border-indigo-200 p-6 rounded-2xl">
+                                <h3 class="font-bold text-indigo-800 mb-2 flex items-center gap-2 text-lg"><span>🎯</span> Core Strategy</h3>
+                                <p class="text-indigo-900 leading-relaxed">${qItem.stratRec || 'Focus on the main idea and supporting evidence.'}</p>
+                            </div>
+                            `}
+                        </div>
+                    `;
+                } else if (this.topicTab === 'formulas') {
+                    contentHtml = `
+                        <div class="bg-amber-50 border border-amber-200 p-8 rounded-2xl text-center shadow-sm">
+                            <h3 class="font-bold text-amber-900 mb-6 text-2xl">Must-Know Formulas</h3>
+                            <div class="text-xl leading-loose font-medium text-amber-800 bg-amber-100/50 p-6 rounded-xl inline-block text-left">
+                                ${qItem.formula}
+                            </div>
+                        </div>
+                    `;
+                } else if (this.topicTab === 'practice') {
+                    contentHtml = this.renderQuizContent();
+                }
+
+                return `
+                    <div class="max-w-4xl mx-auto w-full animate-fade-in">
+                        <div class="mb-4">
+                            <button onclick="app.returnHome()" class="text-sm font-semibold text-${themeColor}-600 hover:text-${themeColor}-800 transition">← Back to Domains</button>
+                        </div>
+                        <h2 class="text-3xl font-extrabold text-slate-900 mb-6">${this.getSkillName(this.currentSkill)}</h2>
+                        ${tabsHtml}
+                        ${contentHtml}
+                    </div>
+                `;
+            }
+
+            renderDrillResults() {
+                const s = this.sessionStats;
+                const pct = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0;
+                const m = Math.floor(s.timeSeconds / 60);
+                const sec = s.timeSeconds % 60;
+                const timeStr = `${m}m ${sec}s`;
+                const themeColor = this.currentSubject === 'english' ? 'text-indigo-600' : 'text-blue-600';
+                const bgHover = this.currentSubject === 'english' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700';
+
+                return `
+                    <div class="max-w-3xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-sm space-y-6 text-center animate-fade-in mt-10">
+                        <h2 class="text-3xl font-extrabold text-slate-900">Practice Session Complete! 🎯</h2>
+                        <p class="text-slate-500">Here's how you did on ${this.getSkillName(this.currentSkill)}</p>
+                        
+                        <div class="w-full border border-slate-100 bg-slate-50 rounded-2xl p-6 flex flex-col md:flex-row justify-around items-center my-6">
+                            <div class="text-center p-4">
+                                <p class="text-slate-500 text-sm font-semibold uppercase tracking-wider">Questions</p>
+                                <p class="text-3xl font-extrabold text-slate-800">${s.total}</p>
+                            </div>
+                            <div class="hidden md:block w-px h-12 bg-slate-200"></div>
+                            <div class="text-center p-4">
+                                <p class="text-slate-500 text-sm font-semibold uppercase tracking-wider">Accuracy</p>
+                                <p class="text-3xl font-extrabold ${themeColor}">${pct}%</p>
+                                <p class="text-xs text-slate-400 mt-1">${s.correct} Right / ${s.wrong} Wrong</p>
+                            </div>
+                            <div class="hidden md:block w-px h-12 bg-slate-200"></div>
+                            <div class="text-center p-4">
+                                <p class="text-slate-500 text-sm font-semibold uppercase tracking-wider">Time</p>
+                                <p class="text-3xl font-extrabold text-emerald-600">${timeStr}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-center space-x-4">
+                            <button onclick="app.startDrill('${this.currentDomain}', '${this.currentSkill}')" class="px-6 py-3 rounded-xl border border-slate-200 font-semibold text-slate-600 hover:bg-slate-100 transition">Study Again</button>
+                            <button onclick="app.returnHome()" class="${bgHover} text-white font-bold px-8 py-3 rounded-xl shadow-md transition">Back to Dashboard</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            renderQuizContent() {
+                const q = this.questions[this.currentIndex];
+                const answered = this.userAnswers[this.currentIndex] !== undefined;
+                const selected = this.userAnswers[this.currentIndex];
+                const themeColor = this.currentSubject === 'english' ? 'indigo' : 'blue';
+
+                return `
+                    <div class="space-y-6">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-6 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-${themeColor}-500"></div>
+                            <p class="text-lg font-medium text-slate-900 leading-relaxed">${q.q}</p>
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 flex items-start space-x-3 mt-6">
+                                <span class="text-lg">💡</span>
+                                <div>
+                                    <strong class="block font-semibold mb-0.5">Strategy Recommendation (${q.stratType}):</strong>
+                                    <span class="text-amber-800">${q.stratRec}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            ${q.options.map((opt, idx) => {
+                                const label = String.fromCharCode(65 + idx);
+                                const isEliminated = this.eliminatedOptions[this.currentIndex]?.[idx];
+                                let cardStyle = "bg-white border-slate-200 text-slate-800";
+                                if (answered) {
+                                    if (opt === q.correct) cardStyle = "bg-emerald-50 border-emerald-500 text-emerald-900 font-semibold";
+                                    else if (selected === opt) cardStyle = "bg-rose-50 border-rose-500 text-rose-900";
+                                }
+                                return `
+                                    <div class="flex items-center space-x-3">
+                                        <button onclick="app.toggleEliminate(${idx})" class="w-9 h-9 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-bold text-xs text-slate-500 transition flex items-center justify-center shrink-0">
+                                            ${label}
+                                        </button>
+                                        <div onclick="${answered ? '' : `app.selectAnswer(${idx})`}" class="flex-1 border rounded-2xl p-4 cursor-pointer option-card flex justify-between items-center ${cardStyle} ${isEliminated ? 'opacity-40 bg-slate-50' : ''}">
+                                            <div class="flex items-center space-x-3">
+                                                <span class="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-600">${label}</span>
+                                                <span class="${isEliminated ? 'strikethrough' : ''}">${opt}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+
+                        ${answered ? `
+                            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4 animate-fade-in">
+                                <div class="flex items-center space-x-2 text-lg font-bold ${selected === q.correct ? 'text-emerald-600' : 'text-rose-600'}">
+                                    <span>${selected === q.correct ? '✓ Correct! Great job.' : '✕ Incorrect. Correct answer is ' + q.correct + '.'}</span>
+                                </div>
+                                <div class="border-t border-slate-100 pt-4 space-y-3 text-sm text-slate-700">
+                                    <div><strong class="text-slate-900">Explanation:</strong> ${q.trad}</div>
+                                    <div class="flex items-center space-x-3 mt-4">
+                                        <button onclick="app.finishDrill()" class="px-6 py-2.5 rounded-xl border border-slate-300 font-bold text-sm text-slate-600 hover:bg-slate-50 transition">End Practice</button>
+                                        <button onclick="app.loadQuestion(); app.render();" class="flex-1 bg-${themeColor}-600 hover:bg-${themeColor}-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition">Next Question →</button>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            renderAdaptiveView() {
+                const q = this.questions[this.currentIndex];
+                const selected = this.userAnswers[this.currentIndex];
+                const btnColorHover = this.currentSubject === 'english' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700';
+
+                return `
+                    <div class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+                        <div class="flex justify-between items-center bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                            <span class="bg-slate-100 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-xl uppercase">Adaptive Test Mode</span>
+                            <span class="text-sm font-semibold text-slate-600">Question ${this.currentIndex + 1} of ${this.questions.length}</span>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm space-y-6">
+                            <p class="text-lg font-medium text-slate-900 leading-relaxed">${q.q}</p>
+                            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 flex items-start space-x-3 mt-6">
+                                <span class="text-lg">💡</span>
+                                <span>${q.stratRec}</span>
+                            </div>
+                        </div>
+                        <div class="space-y-3">
+                            ${q.options.map((opt, idx) => {
+                                const label = String.fromCharCode(65 + idx);
+                                let cardStyle = "bg-white border-slate-200 text-slate-800";
+                                if (selected === opt) cardStyle = "bg-slate-100 border-slate-400 font-semibold";
+                                return `
+                                    <div onclick="app.selectAdaptiveAnswer(${idx})" class="flex-1 border rounded-2xl p-4 cursor-pointer option-card flex justify-between items-center ${cardStyle}">
+                                        <div class="flex items-center space-x-3">
+                                            <span class="w-6 h-6 rounded-full border border-slate-300 flex items-center justify-center text-xs font-bold text-slate-600">${label}</span>
+                                            <span>${opt}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div class="flex justify-between pt-4">
+                            <button onclick="app.prevQuestion()" class="px-5 py-2.5 rounded-xl border border-slate-200 font-semibold text-sm text-slate-600 hover:bg-slate-100 transition" ${this.currentIndex === 0 ? 'disabled' : ''}>← Previous</button>
+                            <button onclick="app.nextAdaptiveQuestion()" class="${btnColorHover} text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-sm transition">${this.currentIndex === this.questions.length - 1 ? 'Finish Module' : 'Next →'}</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            selectAnswer(idx) {
+                const opt = this.questions[this.currentIndex].options[idx];
+                this.userAnswers[this.currentIndex] = opt;
+                
+                // Track session stats for drill mode
+                this.sessionStats.total++;
+                if (opt === this.questions[this.currentIndex].correct) {
+                    this.score++;
+                    this.sessionStats.correct++;
+                } else {
+                    this.sessionStats.wrong++;
+                }
+                
+                this.render();
+            }
+
+            selectAdaptiveAnswer(idx) {
+                const opt = this.questions[this.currentIndex].options[idx];
+                this.userAnswers[this.currentIndex] = opt;
+                this.render();
+            }
+
+            toggleEliminate(idx) {
+                if (!this.eliminatedOptions[this.currentIndex]) this.eliminatedOptions[this.currentIndex] = {};
+                this.eliminatedOptions[this.currentIndex][idx] = !this.eliminatedOptions[this.currentIndex][idx];
+                this.render();
+            }
+
+            nextAdaptiveQuestion() {
+                if (this.currentIndex < this.questions.length - 1) {
+                    this.currentIndex++;
+                    this.render();
+                } else {
+                    this.finishModule();
+                }
+            }
+
+            prevQuestion() {
+                if (this.currentIndex > 0) {
+                    this.currentIndex--;
+                    this.render();
+                }
+            }
+
+            finishModule() {
+                this.stopTimer();
+                let correctCount = 0;
+                
+                // Grade for adaptive test
+                this.questions.forEach((q, idx) => {
+                    if (this.userAnswers[idx] !== undefined) {
+                        if (this.userAnswers[idx] === q.correct) {
+                            correctCount++;
+                        }
+                    }
+                });
+                
+                const pct = Math.round((correctCount / this.questions.length) * 100);
+                const btnColorHover = this.currentSubject === 'english' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-blue-600 hover:bg-blue-700';
+
+                const panel = document.getElementById('main-panel');
+                panel.innerHTML = `
+                    <div class="max-w-3xl mx-auto bg-white border border-slate-200 rounded-3xl p-8 shadow-sm space-y-6 text-center animate-fade-in">
+                        <h2 class="text-3xl font-extrabold text-slate-900">Module Complete! 🎉</h2>
+                        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto py-4">
+                            <div class="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                                <p class="text-sm text-slate-500 font-medium">Score</p>
+                                <p class="text-3xl font-extrabold ${this.currentSubject === 'english' ? 'text-indigo-600' : 'text-blue-600'}">${correctCount} / ${this.questions.length}</p>
+                            </div>
+                            <div class="bg-slate-50 border border-slate-100 p-4 rounded-2xl">
+                                <p class="text-sm text-slate-500 font-medium">Accuracy</p>
+                                <p class="text-3xl font-extrabold text-emerald-600">${pct}%</p>
+                            </div>
+                        </div>
+                        <button onclick="app.returnHome()" class="${btnColorHover} text-white font-bold px-8 py-3 rounded-2xl shadow-md transition">Return to Dashboard</button>
+                    </div>
+                `;
+            }
+
+            getSkillName(skillId) {
+                for (let dom of MATH_CURRICULUM) {
+                    const found = dom.skills.find(s => s.id === skillId);
+                    if (found) return found.name;
+                }
+                for (let dom of ENGLISH_CURRICULUM) {
+                    const found = dom.skills.find(s => s.id === skillId);
+                    if (found) return found.name;
+                }
+                return "Practice";
+            }
+        }
+
+        const style = document.createElement('style');
+        style.innerHTML = "@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }";
+        document.head.appendChild(style);
+
+        const app = new App();
+    </script>
+</body>
+</html>
